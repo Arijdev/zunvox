@@ -1,0 +1,216 @@
+@import "tailwindcss";
+@config "../../tailwind.config.js";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-cyber: var(--color-accent);
+  --color-glass: var(--color-surface);
+  --color-canvas: var(--color-background);
+}
+
+:root {
+  --color-background: #f8fafc;
+  --color-surface: #ffffff;
+  --color-accent: #008b99;
+  --color-accent-glow: rgb(0 139 153 / 18%);
+  --color-foreground: #0f172a;
+  --color-muted: #475569;
+  --color-border: #e2e8f0;
+  color-scheme: light;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.dark {
+  --color-background: #0b0c10;
+  --color-surface: rgb(24 24 27 / 70%);
+  --color-accent: #00f0ff;
+  --color-accent-glow: rgb(0 240 255 / 18%);
+  --color-foreground: #fafafa;
+  --color-muted: #a1a1aa;
+  --color-border: #27272a;
+  --color-slate-400: #a1a1aa;
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-geist), Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+select {
+  min-height: 2.75rem;
+}
+
+input:not([type="hidden"]):not([type="file"]):not([type="range"]):not([type="checkbox"]) {
+  min-height: 2.75rem;
+}
+
+button {
+  touch-action: manipulation;
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+::selection {
+  color: var(--color-background);
+  background: var(--color-accent);
+}
+
+.cyber-grid {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 2.4%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 2.4%) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
+}
+
+.cyber-glow {
+  box-shadow: 0 0 24px var(--color-accent-glow);
+}
+
+.cyber-progress {
+  background: var(--color-accent);
+}
+
+@keyframes cyber-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--color-accent-glow); }
+  50% { box-shadow: 0 0 0 5px var(--color-accent-glow); }
+}
+
+.cyber-pulse {
+  animation: cyber-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes mobile-drawer-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+@keyframes home-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes home-hero-enter-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes home-hero-enter-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.mobile-drawer {
+  animation: mobile-drawer-in 220ms ease-out both;
+}
+
+.home-fade-up {
+  animation: home-fade-up 560ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.home-hero-left,
+.home-hero-right {
+  animation-duration: 2.4s;
+  animation-timing-function: cubic-bezier(0.2, 0.7, 0.2, 1);
+  animation-fill-mode: both;
+  animation-iteration-count: 1;
+}
+
+.home-hero-left { animation-name: home-hero-enter-left; }
+.home-hero-right { animation-name: home-hero-enter-right; }
+
+.home-delay-1 { animation-delay: 80ms; }
+.home-delay-2 { animation-delay: 150ms; }
+.home-delay-3 { animation-delay: 220ms; }
+
+.home-stagger > * {
+  animation: home-fade-up 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.home-stagger > *:nth-child(2) { animation-delay: 50ms; }
+.home-stagger > *:nth-child(3) { animation-delay: 100ms; }
+.home-stagger > *:nth-child(4) { animation-delay: 150ms; }
+.home-stagger > *:nth-child(5) { animation-delay: 200ms; }
+
+button,
+a,
+input,
+select,
+textarea,
+summary {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+}
+
+input[type="range"] {
+  accent-color: var(--color-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .home-fade-up,
+  .home-hero-left,
+  .home-hero-right,
+  .home-stagger > * {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
