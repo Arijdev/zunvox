@@ -142,18 +142,6 @@ async function processImages(
     canvas.height = Math.max(1, Math.round(sourceHeight * scale));
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Your browser could not prepare the image canvas.");
-    context.drawImage(
-      image,
-      sourceX,
-      sourceY,
-      sourceWidth,
-      sourceHeight,
-      0,
-      0,
-      canvas.width,
-      canvas.height,
-    );
-
     const mimeType =
       (tool === "image-convert" || tool === "image-resize") &&
       options.imageFormat !== "auto"
@@ -171,6 +159,17 @@ async function processImages(
       context.fillStyle = "#ffffff";
       context.fillRect(0, 0, canvas.width, canvas.height);
     }
+    context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
     const blob = await canvasBlob(canvas, mimeType, options.quality / 100);
     outputFiles.push({
       name: saveName(file.name, imageExtension(mimeType)),
