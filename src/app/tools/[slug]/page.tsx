@@ -16,6 +16,8 @@ import { createToolMetadata } from "@/lib/seo";
 import { utilityTools, utilityToolBySlug } from "@/lib/utility-tools";
 import type { ToolId } from "@/lib/processors";
 
+export const instant = false;
+
 const existingRoutes = new Set([
   "image-compressor",
   "pdf-to-word",
