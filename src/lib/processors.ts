@@ -26,6 +26,7 @@ export type ProcessingOptions = {
   cropHeight: number;
   pageRanges: string;
   documentFormat: "auto" | "txt" | "docx" | "pdf";
+  pdfTargetReduction: number;
 };
 
 export type ProcessingResult = {
@@ -471,20 +472,48 @@ export async function processFiles(
   }
 
   if (tool === "pdf-compress") {
-    const pdf = await PDFDocument.load(await files[0].arrayBuffer());
-    pdf.setTitle("");
-    pdf.setAuthor("");
-    pdf.setSubject("");
-    pdf.setKeywords([]);
-    pdf.setCreator("");
-    pdf.setProducer("");
-    const blob = pdfBlob(await pdf.save({ useObjectStreams: true }));
-    return {
-      blob,
-      filename: saveName(files[0].name, "pdf"),
-      originalSize,
-      details: `${formatBytes(blob.size)} output · metadata removed; embedded images are not re-encoded`,
-    };
+    const reduction = Math.min(90, Math.max(0, options.pdfTargetReduction || 0));
+    const scale = Math.max(0.35, 1 - reduction / 140);
+    const jpegQuality = Math.max(0.25, 0.92 - reduction / 115);
+    const pdfjs = await import("pdfjs-dist");
+    pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+    const loadingTask = pdfjs.getDocument({ data: await files[0].arrayBuffer() });
+    try {
+      const source = await loadingTask.promise;
+      const output = await PDFDocument.create();
+      for (let pageNumber = 1; pageNumber <= source.numPages; pageNumber += 1) {
+        const page = await source.getPage(pageNumber);
+        const viewport = page.getViewport({ scale });
+        const canvas = window.document.createElement("canvas");
+        canvas.width = Math.max(1, Math.ceil(viewport.width));
+        canvas.height = Math.max(1, Math.ceil(viewport.height));
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Your browser could not prepare the PDF page.");
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        await page.render({ canvas, canvasContext: context, viewport }).promise;
+        const imageBlob = await canvasBlob(canvas, "image/jpeg", jpegQuality);
+        const imageBytes = await imageBlob.arrayBuffer();
+        const image = await output.embedJpg(imageBytes);
+        const outPage = output.addPage([canvas.width, canvas.height]);
+        outPage.drawImage(image, {
+          x: 0,
+          y: 0,
+          width: canvas.width,
+          height: canvas.height,
+        });
+        onProgress(Math.round((pageNumber / source.numPages) * 90));
+      }
+      const blob = pdfBlob(await output.save({ useObjectStreams: true }));
+      return {
+        blob,
+        filename: saveName(files[0].name, "pdf"),
+        originalSize,
+        details: `${formatBytes(blob.size)} output · target ${reduction}% reduction; pages re-rendered as images`,
+      };
+    } finally {
+      await loadingTask.destroy();
+    }
   }
 
   if (tool === "pdf-crop") {

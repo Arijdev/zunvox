@@ -36,6 +36,7 @@ const initialOptions: ProcessingOptions = {
   cropHeight: 800,
   pageRanges: "1-3",
   documentFormat: "auto",
+  pdfTargetReduction: 30,
 };
 
 function formatSize(bytes: number) {
@@ -448,6 +449,39 @@ export default function ToolProcessor({
               ))}
             </div>
           </div>
+        )}
+
+        {tool === "pdf-compress" && (
+          <label className="mt-5 block">
+            <span className="flex items-center justify-between text-sm font-semibold">
+              Target size reduction{" "}
+              <span className="text-slate-700 dark:text-zinc-200">
+                {options.pdfTargetReduction}%
+              </span>
+            </span>
+            <input
+              type="range"
+              min="0"
+              max="90"
+              value={options.pdfTargetReduction}
+              onChange={(event) => {
+                setOptions((current) => ({
+                  ...current,
+                  pdfTargetReduction: Number(event.target.value),
+                }));
+                setResult(null);
+              }}
+              className="mt-4 h-6 w-full accent-slate-500 dark:accent-zinc-400"
+              aria-label="Target PDF size reduction"
+            />
+            <span className="mt-1 flex justify-between text-[10px] text-slate-400">
+              <span>Keep quality</span>
+              <span>Smaller file</span>
+            </span>
+            <span className="mt-2 block text-xs font-normal text-slate-500 dark:text-slate-400">
+              Higher values re-render pages at lower quality/resolution to reduce size. Actual reduction depends on the PDF content.
+            </span>
+          </label>
         )}
 
         {tool === "document-convert" && (
