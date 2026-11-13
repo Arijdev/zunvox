@@ -27,6 +27,7 @@ export type ProcessingOptions = {
   pageRanges: string;
   documentFormat: "auto" | "txt" | "docx" | "pdf";
   pdfTargetReduction: number;
+  documentTargetReduction: number;
 };
 
 export type ProcessingResult = {
@@ -560,19 +561,87 @@ export async function processFiles(
         "Only .docx files are supported. Legacy .doc files cannot be safely recompressed in the browser.",
       );
     }
+    const reduction = Math.min(90, Math.max(0, options.documentTargetReduction || 0));
+    const scale = Math.max(0.4, 1 - reduction / 150);
+    const jpegQuality = Math.max(0.3, 0.92 - reduction / 120);
     const zip = await JSZip.loadAsync(files[0]);
+    const mediaPaths = Object.keys(zip.files).filter((path) =>
+      /^word\/media\//i.test(path),
+    );
+    let processed = 0;
+    for (const path of mediaPaths) {
+      const entry = zip.file(path);
+      if (!entry) continue;
+      const ext = extensionOf(path);
+      const isJpeg = ext === "jpg" || ext === "jpeg";
+      const isPng = ext === "png";
+      const isWebp = ext === "webp";
+      if (!isJpeg && !isPng && !isWebp) {
+        processed += 1;
+        continue;
+      }
+      const data = await entry.async("uint8array");
+      const buffer = new ArrayBuffer(data.byteLength);
+      new Uint8Array(buffer).set(data);
+      const mime = isJpeg
+        ? "image/jpeg"
+        : isPng
+          ? "image/png"
+          : "image/webp";
+      const file = new File([buffer], path, { type: mime });
+      try {
+        const image = await getImage(file);
+        const canvas = window.document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Your browser could not prepare the image canvas.");
+        const outMime = isPng ? "image/png" : "image/jpeg";
+        if (outMime === "image/jpeg") {
+          context.fillStyle = "#ffffff";
+          context.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const outBlob = await canvasBlob(canvas, outMime, outMime === "image/jpeg" ? jpegQuality : 0.92);
+        const outPath = isPng ? path : path.replace(/\.(webp)$/i, ".jpg");
+        const outBytes = new Uint8Array(await outBlob.arrayBuffer());
+        if (outPath !== path) {
+          zip.remove(path);
+        }
+        zip.file(outPath, outBytes, { binary: true });
+        if (outPath !== path) {
+          const relPath = path.replace(/^word\//, "");
+          const relOut = outPath.replace(/^word\//, "");
+          const relsFile = zip.file("word/_rels/document.xml.rels");
+          if (relsFile) {
+            const rels = await relsFile.async("text");
+            zip.file("word/_rels/document.xml.rels", rels.split(relPath).join(relOut));
+          }
+        }
+      } catch {
+        zip.file(path, data, { binary: true });
+      }
+      processed += 1;
+      if (mediaPaths.length) {
+        onProgress(Math.round((processed / mediaPaths.length) * 70));
+      }
+    }
+    const compressionLevel = Math.min(
+      9,
+      Math.max(1, Math.round(1 + reduction / 11)),
+    ) as 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
     const blob = await zip.generateAsync({
       type: "blob",
       mimeType:
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       compression: "DEFLATE",
-      compressionOptions: { level: 9 },
+      compressionOptions: { level: compressionLevel },
     });
     return {
       blob,
       filename: saveName(files[0].name, "docx"),
       originalSize,
-      details: `${formatBytes(blob.size)} output · package recompressed without removing document content`,
+      details: `${formatBytes(blob.size)} output · target ${reduction}% reduction; embedded images recompressed where possible`,
     };
   }
 
