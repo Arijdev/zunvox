@@ -38,6 +38,7 @@ const initialOptions: ProcessingOptions = {
   documentFormat: "auto",
   pdfTargetReduction: 30,
   documentTargetReduction: 30,
+  rotateAngle: 90,
 };
 
 function formatSize(bytes: number) {
@@ -70,6 +71,7 @@ export default function ToolProcessor({
       "pdf-split": "PDF splitter workspace",
       "pdf-crop": "PDF cropping workspace",
       "pdf-to-images": "PDF to images workspace",
+      "pdf-rotate": "PDF page rotation workspace",
       "document-compress": "Word compression workspace",
       "document-convert": "Document conversion workspace",
     }[tool] ?? "File processing workspace";
@@ -420,6 +422,53 @@ export default function ToolProcessor({
           </label>
         )}
 
+        {tool === "pdf-rotate" && (
+          <div className="mt-5 space-y-4">
+            <div>
+              <p className="text-sm font-semibold">Rotation Angle</p>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {([90, 180, 270] as const).map((angle) => (
+                  <button
+                    key={angle}
+                    type="button"
+                    onClick={() =>
+                      setOptions((current) => ({
+                        ...current,
+                        rotateAngle: angle,
+                      }))
+                    }
+                    className={`flex h-11 items-center justify-center rounded-xl border text-xs font-semibold transition ${
+                      options.rotateAngle === angle
+                        ? "border-[#007783] bg-[#007783]/10 text-[#007783] dark:border-[#00F0FF] dark:bg-[#00F0FF]/15 dark:text-[#00F0FF]"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300"
+                    }`}
+                  >
+                    {angle === 90 ? "90° CW" : angle === 180 ? "180°" : "270° CW"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="block text-sm font-semibold">
+              Pages to rotate
+              <input
+                type="text"
+                value={options.pageRanges}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    pageRanges: event.target.value,
+                  }))
+                }
+                placeholder="all (or 1, 3-5)"
+                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm dark:border-zinc-800 dark:bg-[#18181b]"
+              />
+              <span className="mt-1 block text-xs font-normal text-slate-500">
+                Type &ldquo;all&rdquo; to rotate every page, or specific page numbers like &ldquo;1, 3-5&rdquo;.
+              </span>
+            </label>
+          </div>
+        )}
+
         {tool === "pdf-crop" && (
           <div className="mt-5">
             <p className="text-sm font-semibold">Crop box (PDF points)</p>
@@ -575,6 +624,7 @@ export default function ToolProcessor({
                   "pdf-split": "Split PDF",
                   "pdf-crop": "Crop PDF pages",
                   "pdf-to-images": "Convert PDF to images",
+                  "pdf-rotate": "Rotate PDF pages",
                   "document-compress": "Compress DOCX",
                   "document-convert": "Convert document",
                 }[tool]}

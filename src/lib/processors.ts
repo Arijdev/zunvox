@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, degrees } from "pdf-lib";
 
 export type ToolId =
   | "image-compress"
@@ -11,6 +11,7 @@ export type ToolId =
   | "pdf-merge"
   | "pdf-split"
   | "pdf-to-images"
+  | "pdf-rotate"
   | "document-convert"
   | "document-compress";
 
@@ -28,6 +29,7 @@ export type ProcessingOptions = {
   documentFormat: "auto" | "txt" | "docx" | "pdf";
   pdfTargetReduction: number;
   documentTargetReduction: number;
+  rotateAngle?: 90 | 180 | 270;
 };
 
 export type ProcessingResult = {
@@ -135,7 +137,6 @@ async function processImages(
     const scale =
       tool === "image-resize"
         ? Math.min(
-            1,
             Math.max(1, options.maxWidth) / sourceWidth,
             Math.max(1, options.maxHeight) / sourceHeight,
           )
@@ -200,8 +201,13 @@ async function processImages(
 }
 
 function parsePageRanges(input: string, pageCount: number) {
-  const ranges = input
-    .split(",")
+  const trimmed = input.trim();
+  if (!trimmed || trimmed.toLowerCase() === "all") {
+    return [Array.from({ length: pageCount }, (_, index) => index)];
+  }
+
+  const ranges = trimmed
+    .split(/[,;\s]+/)
     .map((part) => part.trim())
     .filter(Boolean);
   if (ranges.length === 0) throw new Error("Enter at least one page or page range.");
@@ -209,7 +215,7 @@ function parsePageRanges(input: string, pageCount: number) {
   return ranges.map((range) => {
     const match = range.match(/^(\d+)(?:\s*-\s*(\d+))?$/);
     if (!match) {
-      throw new Error('Use page numbers like "1, 3-5, 8".');
+      throw new Error(`Invalid page range "${range}". Use format like "1, 3-5, 8".`);
     }
     const start = Number(match[1]);
     const end = Number(match[2] ?? match[1]);
@@ -220,31 +226,163 @@ function parsePageRanges(input: string, pageCount: number) {
   });
 }
 
+function normalizeForPdf(input: string): string {
+  return input
+    .replace(/[\u2018\u2019\u201A]/g, "'")
+    .replace(/[\u201C\u201D\u201E]/g, '"')
+    .replace(/\u2014/g, " -- ")
+    .replace(/\u2013/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/\u2022/g, "* ")
+    .replace(/[\u00A0\u2002\u2003\u2009]/g, " ")
+    .replace(/\u00A9/g, "(c)")
+    .replace(/\u00AE/g, "(R)")
+    .replace(/\u2122/g, "(TM)")
+    .replace(/[^\x20-\x7E\t\n\r]/g, (char) => {
+      const code = char.charCodeAt(0);
+      if (code >= 160 && code <= 255) return char;
+      const norm = char.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (norm.length === 1 && norm.charCodeAt(0) >= 32 && norm.charCodeAt(0) <= 126) return norm;
+      return " ";
+    });
+}
+
 async function createPdfFromText(text: string) {
   const pdf = await PDFDocument.create();
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const lines = text.split(/\r?\n/).flatMap((line) => {
-    if (!line) return [""];
-    const wrapped: string[] = [];
-    for (let index = 0; index < line.length; index += 90) {
-      wrapped.push(line.slice(index, index + 90));
-    }
-    return wrapped;
-  });
+  const fontRegular = await pdf.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-  for (let index = 0; index < lines.length; index += 54) {
-    const page = pdf.addPage([612, 792]);
-    page.drawText(lines.slice(index, index + 54).join("\n"), {
-      x: 48,
-      y: 744,
-      size: 10,
-      lineHeight: 13,
-      font,
-      color: rgb(0.12, 0.16, 0.22),
-      maxWidth: 516,
+  const pageWidth = 612; // Standard Letter
+  const pageHeight = 792;
+  const marginX = 54;
+  const marginTop = 54;
+  const marginBottom = 54;
+  const maxContentWidth = pageWidth - marginX * 2;
+
+  const rawParagraphs = normalizeForPdf(text).split(/\r?\n/);
+  const pages: Array<{
+    page: ReturnType<typeof pdf.addPage>;
+  }> = [];
+
+  let currentPage = pdf.addPage([pageWidth, pageHeight]);
+  pages.push({ page: currentPage });
+  let currentY = pageHeight - marginTop;
+
+  function ensureSpace(neededHeight: number) {
+    if (currentY - neededHeight < marginBottom) {
+      currentPage = pdf.addPage([pageWidth, pageHeight]);
+      pages.push({ page: currentPage });
+      currentY = pageHeight - marginTop;
+    }
+  }
+
+  for (const rawPara of rawParagraphs) {
+    const trimmed = rawPara.trim();
+    if (!trimmed) {
+      // Empty line / paragraph break
+      currentY -= 10;
+      if (currentY < marginBottom) {
+        currentPage = pdf.addPage([pageWidth, pageHeight]);
+        pages.push({ page: currentPage });
+        currentY = pageHeight - marginTop;
+      }
+      continue;
+    }
+
+    const isHeading = trimmed.startsWith("# ");
+    const paraText = isHeading ? trimmed.slice(2).trim() : rawPara;
+    const font = isHeading ? fontBold : fontRegular;
+    const fontSize = isHeading ? 14 : 10;
+    const lineHeight = isHeading ? 18 : 14;
+    const fontColor = isHeading ? rgb(0.08, 0.12, 0.18) : rgb(0.15, 0.18, 0.23);
+
+    if (isHeading) {
+      // Extra space before headings
+      currentY -= 6;
+    }
+
+    // Word-wrap using font measurement
+    const words = paraText.split(/\s+/);
+    let currentLine = "";
+
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i];
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const testWidth = font.widthOfTextAtSize(testLine, fontSize);
+
+      if (testWidth <= maxContentWidth) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) {
+          ensureSpace(lineHeight);
+          currentPage.drawText(currentLine, {
+            x: marginX,
+            y: currentY - fontSize,
+            size: fontSize,
+            font,
+            color: fontColor,
+          });
+          currentY -= lineHeight;
+        }
+
+        // If the single word is itself wider than maxContentWidth, split it
+        const wordWidth = font.widthOfTextAtSize(word, fontSize);
+        if (wordWidth > maxContentWidth) {
+          let partial = "";
+          for (const char of word) {
+            if (font.widthOfTextAtSize(partial + char, fontSize) > maxContentWidth) {
+              ensureSpace(lineHeight);
+              currentPage.drawText(partial, {
+                x: marginX,
+                y: currentY - fontSize,
+                size: fontSize,
+                font,
+                color: fontColor,
+              });
+              currentY -= lineHeight;
+              partial = char;
+            } else {
+              partial += char;
+            }
+          }
+          currentLine = partial;
+        } else {
+          currentLine = word;
+        }
+      }
+    }
+
+    if (currentLine) {
+      ensureSpace(lineHeight);
+      currentPage.drawText(currentLine, {
+        x: marginX,
+        y: currentY - fontSize,
+        size: fontSize,
+        font,
+        color: fontColor,
+      });
+      currentY -= lineHeight;
+    }
+
+    // Small paragraph spacing
+    currentY -= isHeading ? 6 : 4;
+  }
+
+  // Draw clean page footers with page numbers
+  const totalPages = pages.length;
+  for (let i = 0; i < totalPages; i++) {
+    const p = pages[i].page;
+    const pageNumberText = `Page ${i + 1} of ${totalPages}`;
+    const numWidth = fontRegular.widthOfTextAtSize(pageNumberText, 9);
+    p.drawText(pageNumberText, {
+      x: (pageWidth - numWidth) / 2,
+      y: 28,
+      size: 9,
+      font: fontRegular,
+      color: rgb(0.5, 0.55, 0.6),
     });
   }
-  if (lines.length === 0) pdf.addPage([612, 792]);
+
   return pdfBlob(await pdf.save());
 }
 
@@ -265,10 +403,18 @@ export async function textToDocx(text: string) {
   const zip = new JSZip();
   const paragraphs = text
     .split(/\r?\n/)
-    .map(
-      (line) =>
-        `<w:p><w:r><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>`,
-    )
+    .map((line) => {
+      const trimmed = line.trim();
+      const isHeading = trimmed.startsWith("# ");
+      const cleanText = isHeading ? trimmed.slice(2).trim() : line;
+      const pPr = isHeading
+        ? '<w:pPr><w:pStyle w:val="Heading1"/><w:spacing w:before="240" w:after="120"/><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/><w:color w:val="1E293B"/></w:rPr></w:pPr>'
+        : '<w:pPr><w:spacing w:after="140" w:line="276" w:lineRule="auto"/><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="22"/><w:szCs w:val="22"/><w:color w:val="0F172A"/></w:rPr></w:pPr>';
+      const rPr = isHeading
+        ? '<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:b/><w:sz w:val="32"/><w:szCs w:val="32"/><w:color w:val="1E293B"/></w:rPr>'
+        : '<w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="22"/><w:szCs w:val="22"/><w:color w:val="0F172A"/></w:rPr>';
+      return `<w:p>${pPr}<w:r>${rPr}<w:t xml:space="preserve">${escapeXml(cleanText)}</w:t></w:r></w:p>`;
+    })
     .join("");
 
   zip.file(
@@ -291,7 +437,7 @@ export async function textToDocx(text: string) {
     "word/document.xml",
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
-      `<w:body>${paragraphs}<w:sectPr/></w:body></w:document>`,
+      `<w:body>${paragraphs}<w:sectPr><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>`,
   );
   return zip.generateAsync({
     type: "blob",
@@ -326,13 +472,66 @@ async function documentText(file: File) {
     if (xml.querySelector("parsererror")) {
       throw new Error("This DOCX file contains invalid document XML.");
     }
-    return Array.from(xml.getElementsByTagName("w:p"))
-      .map((paragraph) =>
-        Array.from(paragraph.getElementsByTagName("w:t"))
-          .map((part) => part.textContent ?? "")
-          .join(""),
-      )
-      .join("\n");
+
+    const body = xml.getElementsByTagName("w:body")[0];
+    if (!body) return "";
+
+    const parts: string[] = [];
+
+    for (const child of Array.from(body.childNodes)) {
+      const nodeName = child.nodeName;
+      if (nodeName === "w:p") {
+        let paraText = "";
+        let isHeading = false;
+        const elem = child as Element;
+        const pPr = elem.getElementsByTagName("w:pPr")[0];
+        if (pPr) {
+          const pStyle = pPr.getElementsByTagName("w:pStyle")[0];
+          const val = pStyle?.getAttribute("w:val") || "";
+          if (/heading|title/i.test(val)) isHeading = true;
+        }
+
+        for (const pChild of Array.from(elem.childNodes)) {
+          if (pChild.nodeName === "w:r") {
+            for (const rChild of Array.from(pChild.childNodes)) {
+              if (rChild.nodeName === "w:t") {
+                paraText += rChild.textContent ?? "";
+              } else if (rChild.nodeName === "w:tab") {
+                paraText += "\t";
+              } else if (rChild.nodeName === "w:br") {
+                paraText += "\n";
+              }
+            }
+          }
+        }
+        const trimmed = paraText.trim();
+        if (trimmed) {
+          parts.push(isHeading ? `# ${trimmed}` : paraText);
+        } else {
+          parts.push("");
+        }
+      } else if (nodeName === "w:tbl") {
+        const rows = Array.from((child as Element).getElementsByTagName("w:tr"));
+        for (const row of rows) {
+          const cells = Array.from(row.getElementsByTagName("w:tc")).map((tc) => {
+            const pTags = Array.from(tc.getElementsByTagName("w:p"));
+            return pTags
+              .map((p) =>
+                Array.from(p.getElementsByTagName("w:t"))
+                  .map((t) => t.textContent ?? "")
+                  .join(""),
+              )
+              .join(" ")
+              .trim();
+          });
+          if (cells.some((c) => c.length > 0)) {
+            parts.push(cells.join("  |  "));
+          }
+        }
+        parts.push("");
+      }
+    }
+    return parts.join("\n");
   }
   throw new Error(
     "Legacy .doc files are not supported. Save the document as .docx or .rtf and try again.",
@@ -345,17 +544,68 @@ async function pdfText(file: File) {
   const loadingTask = pdfjs.getDocument({ data: await file.arrayBuffer() });
   try {
     const document = await loadingTask.promise;
-    const pages: string[] = [];
+    const pagesText: string[] = [];
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       const page = await document.getPage(pageNumber);
       const content = await page.getTextContent();
-      pages.push(
-        content.items
-          .map((item) => ("str" in item ? item.str : ""))
-          .join(" "),
-      );
+
+      type TextItem = { str: string; x: number; y: number; height: number };
+      const items: TextItem[] = [];
+
+      for (const item of content.items) {
+        if ("str" in item && item.str) {
+          const transform = item.transform;
+          items.push({
+            str: item.str,
+            x: transform[4],
+            y: transform[5],
+            height: Math.abs(transform[3]) || 12,
+          });
+        }
+      }
+
+      if (items.length === 0) {
+        pagesText.push("");
+        continue;
+      }
+
+      // Sort items top-to-bottom (y descending), then left-to-right (x ascending)
+      items.sort((a, b) => {
+        const yDiff = Math.abs(a.y - b.y);
+        if (yDiff > 3) return b.y - a.y;
+        return a.x - b.x;
+      });
+
+      const lines: string[] = [];
+      let currentLine = "";
+      let lastY = items[0].y;
+      let lastX = items[0].x;
+      let lastHeight = items[0].height;
+
+      for (const item of items) {
+        const yDiff = Math.abs(item.y - lastY);
+        if (yDiff > Math.max(3, lastHeight * 0.5)) {
+          if (currentLine.trim()) lines.push(currentLine.trim());
+          if (yDiff > lastHeight * 1.6) {
+            lines.push("");
+          }
+          currentLine = item.str;
+        } else {
+          const spaceNeeded =
+            item.x > lastX + 2 &&
+            !currentLine.endsWith(" ") &&
+            !item.str.startsWith(" ");
+          currentLine += (spaceNeeded ? " " : "") + item.str;
+        }
+        lastY = item.y;
+        lastX = item.x + item.str.length * lastHeight * 0.45;
+        lastHeight = item.height;
+      }
+      if (currentLine.trim()) lines.push(currentLine.trim());
+
+      pagesText.push(lines.join("\n"));
     }
-    return pages.join("\n\n");
+    return pagesText.join("\n\n");
   } finally {
     await loadingTask.destroy();
   }
@@ -407,18 +657,36 @@ export async function processFiles(
 
   if (tool === "images-to-pdf") {
     const pdf = await PDFDocument.create();
+    // Standard A4 dimensions
+    const pageWidth = 595.28;
+    const pageHeight = 841.89;
+    const margin = 36;
+    const maxContentWidth = pageWidth - margin * 2;
+    const maxContentHeight = pageHeight - margin * 2;
+
     for (const [index, file] of files.entries()) {
       const bytes = await file.arrayBuffer();
       const image =
         file.type === "image/png"
           ? await pdf.embedPng(bytes)
           : await pdf.embedJpg(bytes);
-      const page = pdf.addPage([image.width, image.height]);
+
+      const scale = Math.min(
+        maxContentWidth / image.width,
+        maxContentHeight / image.height,
+        1,
+      );
+      const drawWidth = image.width * scale;
+      const drawHeight = image.height * scale;
+      const x = (pageWidth - drawWidth) / 2;
+      const y = (pageHeight - drawHeight) / 2;
+
+      const page = pdf.addPage([pageWidth, pageHeight]);
       page.drawImage(image, {
-        x: 0,
-        y: 0,
-        width: image.width,
-        height: image.height,
+        x,
+        y,
+        width: drawWidth,
+        height: drawHeight,
       });
       onProgress(Math.round(((index + 1) / files.length) * 90));
     }
@@ -426,7 +694,33 @@ export async function processFiles(
       blob: pdfBlob(await pdf.save()),
       filename: "images-to-pdf.pdf",
       originalSize,
-      details: `${files.length} images combined into one PDF`,
+      details: `${files.length} image${files.length === 1 ? "" : "s"} formatted into standard A4 PDF`,
+    };
+  }
+
+  if (tool === "pdf-rotate") {
+    const angle = options.rotateAngle || 90;
+    const pdf = await PDFDocument.load(await files[0].arrayBuffer());
+    const pageCount = pdf.getPageCount();
+    const pagesToRotate =
+      options.pageRanges &&
+      options.pageRanges.trim() &&
+      options.pageRanges.trim().toLowerCase() !== "all"
+        ? parsePageRanges(options.pageRanges, pageCount).flat()
+        : Array.from({ length: pageCount }, (_, i) => i);
+
+    for (const pageIndex of pagesToRotate) {
+      const page = pdf.getPage(pageIndex);
+      const currentRotation = page.getRotation().angle;
+      page.setRotation(degrees((currentRotation + angle) % 360));
+    }
+
+    const blob = pdfBlob(await pdf.save());
+    return {
+      blob,
+      filename: saveName(files[0].name, "pdf"),
+      originalSize,
+      details: `${pagesToRotate.length} of ${pageCount} page${pageCount === 1 ? "" : "s"} rotated by ${angle}°`,
     };
   }
 
@@ -732,6 +1026,7 @@ export function acceptedFormats(tool: ToolId) {
       return ".pdf";
     case "pdf-split":
     case "pdf-to-images":
+    case "pdf-rotate":
       return ".pdf";
     case "document-compress":
       return ".docx";

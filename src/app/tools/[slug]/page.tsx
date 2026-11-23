@@ -24,6 +24,22 @@ const existingRoutes = new Set([
   "ocr",
   "summarize",
   "vault",
+  "pdf-rotate",
+  "password-generator",
+  "word-counter",
+  "case-converter",
+  "lorem-ipsum",
+  "find-replace",
+  "line-sorter",
+  "text-diff",
+  "base64",
+  "url-encoder",
+  "html-entities",
+  "json-formatter",
+  "number-base",
+  "color-converter",
+  "hash-generator",
+  "uuid-generator",
 ]);
 
 const iconBySlug = {

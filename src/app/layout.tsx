@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
 import { siteUrl } from "@/lib/site";
 import { siteDescription } from "@/lib/seo";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import JsonLd from "./JsonLd";
 import "./globals.css";
 
-const geist = Geist({ subsets: ["latin"], display: "swap", variable: "--font-geist" });
 const keywords = [
   "Zunvox client-side utility suite",
   "client side utility suite",
@@ -140,7 +138,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   };
 
   return (
-    <html lang="en" className={`${geist.variable} h-full antialiased`}>
+    <html lang="en" className="h-full antialiased">
       <head>
         <link rel="preconnect" href="https://huggingface.co" />
         <link

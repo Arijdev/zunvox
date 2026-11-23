@@ -2,19 +2,34 @@
 
 import {
   ArrowRight,
+  Binary,
+  Code,
   Combine,
+  Diff,
+  FileCode,
   FileImage,
   FileStack,
   FileText,
+  Fingerprint,
+  Hash,
+  Heading,
   Image as ImageIcon,
+  KeyRound,
+  Link as LinkIcon,
+  ListOrdered,
   LockKeyhole,
   Maximize2,
   Minimize2,
+  Palette,
+  RotateCw,
   ScanText,
   Scissors,
+  Search,
   ShieldCheck,
   Sparkles,
+  Type,
   WandSparkles,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import Footer from "@/components/Footer";
@@ -30,26 +45,44 @@ const categoryOrder: UtilityCategory[] = [
   "Compress",
   "Convert",
   "Organize",
+  "Text Tools",
+  "Encode & Convert",
   "AI & Privacy",
 ];
 
-const icons = [
-  Minimize2,
-  FileText,
-  FileStack,
-  FileImage,
-  FileText,
-  WandSparkles,
-  ImageIcon,
-  FileImage,
-  Maximize2,
-  Maximize2,
-  Combine,
-  Scissors,
-  ScanText,
-  Sparkles,
-  LockKeyhole,
-];
+const iconBySlug: Record<string, LucideIcon> = {
+  "image-compressor": Minimize2,
+  "pdf-compressor": FileText,
+  "word-compressor": FileStack,
+  "image-to-pdf": FileImage,
+  "pdf-to-word": FileText,
+  "document-converters": WandSparkles,
+  "image-converter": ImageIcon,
+  "pdf-to-images": FileImage,
+  "image-resizer": Maximize2,
+  "pdf-crop": Maximize2,
+  "pdf-merge": Combine,
+  "pdf-split": Scissors,
+  "pdf-rotate": RotateCw,
+  "ocr": ScanText,
+  "summarize": Sparkles,
+  "vault": LockKeyhole,
+  "password-generator": KeyRound,
+  "word-counter": Type,
+  "case-converter": Heading,
+  "lorem-ipsum": FileText,
+  "find-replace": Search,
+  "line-sorter": ListOrdered,
+  "text-diff": Diff,
+  "base64": Binary,
+  "url-encoder": LinkIcon,
+  "html-entities": Code,
+  "json-formatter": FileCode,
+  "number-base": Binary,
+  "color-converter": Palette,
+  "hash-generator": Hash,
+  "uuid-generator": Fingerprint,
+};
 
 export default function Home() {
   const { darkMode, toggleTheme } = useTheme();
@@ -135,8 +168,7 @@ export default function Home() {
                   </h3>
                   <div className="home-stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     {tools.map((tool) => {
-                      const index = utilityTools.indexOf(tool);
-                      const Icon = icons[index];
+                      const Icon = iconBySlug[tool.slug] || FileText;
                       return (
                         <Link
                           key={tool.slug}
@@ -186,7 +218,7 @@ export default function Home() {
           </div>
           <div className="flex flex-wrap gap-2 text-xs font-medium">
             {[
-              ["15", "dedicated tools"],
+              ["31", "dedicated tools"],
               ["0", "bytes uploaded"],
               ["Free", "no account"],
             ].map(([value, label]) => (

@@ -1,6 +1,12 @@
 import type { ToolId } from "@/lib/processors";
 
-export type UtilityCategory = "Compress" | "Convert" | "Organize" | "AI & Privacy";
+export type UtilityCategory =
+  | "Compress"
+  | "Convert"
+  | "Organize"
+  | "AI & Privacy"
+  | "Text Tools"
+  | "Encode & Convert";
 
 export type UtilityTool = {
   slug: string;
@@ -96,6 +102,13 @@ export const utilityTools: UtilityTool[] = [
     processor: "pdf-split",
   },
   {
+    slug: "pdf-rotate",
+    title: "PDF Page Rotator",
+    description: "Rotate all or selected pages in a PDF by 90, 180, or 270 degrees.",
+    category: "Organize",
+    processor: "pdf-rotate",
+  },
+  {
     slug: "ocr",
     title: "OCR Text Extractor",
     description: "Recognize text in images and scanned PDF documents.",
@@ -112,6 +125,96 @@ export const utilityTools: UtilityTool[] = [
     title: "Zunvox Vault",
     description: "Encrypt and decrypt files locally with your passphrase.",
     category: "AI & Privacy",
+  },
+  {
+    slug: "password-generator",
+    title: "Password Generator",
+    description: "Generate strong, random passwords with custom options using crypto.getRandomValues.",
+    category: "AI & Privacy",
+  },
+  {
+    slug: "word-counter",
+    title: "Word Counter & Text Stats",
+    description: "Count words, characters, sentences, paragraphs, and estimate reading time.",
+    category: "Text Tools",
+  },
+  {
+    slug: "case-converter",
+    title: "Text Case Converter",
+    description: "Convert text to UPPER, lower, Title, Sentence, camelCase, snake_case, or kebab-case.",
+    category: "Text Tools",
+  },
+  {
+    slug: "lorem-ipsum",
+    title: "Lorem Ipsum Generator",
+    description: "Generate paragraphs of placeholder lorem ipsum text.",
+    category: "Text Tools",
+  },
+  {
+    slug: "find-replace",
+    title: "Find & Replace",
+    description: "Find and replace text within a text area with live preview.",
+    category: "Text Tools",
+  },
+  {
+    slug: "line-sorter",
+    title: "Line Sorter",
+    description: "Sort, reverse, deduplicate, or shuffle lines of text.",
+    category: "Text Tools",
+  },
+  {
+    slug: "text-diff",
+    title: "Text Diff Viewer",
+    description: "Compare two texts and highlight added and removed lines.",
+    category: "Text Tools",
+  },
+  {
+    slug: "base64",
+    title: "Base64 Encoder / Decoder",
+    description: "Encode or decode text to and from Base64 format.",
+    category: "Encode & Convert",
+  },
+  {
+    slug: "url-encoder",
+    title: "URL Encoder / Decoder",
+    description: "Encode or decode URLs and query string parameters.",
+    category: "Encode & Convert",
+  },
+  {
+    slug: "html-entities",
+    title: "HTML Entity Encoder",
+    description: "Encode or decode special HTML characters to their entity equivalents.",
+    category: "Encode & Convert",
+  },
+  {
+    slug: "json-formatter",
+    title: "JSON Formatter & Validator",
+    description: "Prettify, minify, and validate JSON data in your browser.",
+    category: "Encode & Convert",
+  },
+  {
+    slug: "number-base",
+    title: "Number Base Converter",
+    description: "Convert numbers between binary, octal, decimal, and hexadecimal.",
+    category: "Encode & Convert",
+  },
+  {
+    slug: "color-converter",
+    title: "Color Converter",
+    description: "Convert colors between HEX, RGB, and HSL with a live preview.",
+    category: "Encode & Convert",
+  },
+  {
+    slug: "hash-generator",
+    title: "Hash Generator",
+    description: "Generate SHA-256, SHA-1, or SHA-512 hashes of text using the Web Crypto API.",
+    category: "Encode & Convert",
+  },
+  {
+    slug: "uuid-generator",
+    title: "UUID Generator",
+    description: "Generate RFC 4122 v4 UUIDs using crypto.randomUUID.",
+    category: "Encode & Convert",
   },
 ];
 
